@@ -3,6 +3,7 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
+const _ = require("lodash");
 
 const app = express();
 
@@ -61,29 +62,56 @@ app.get("/", function(req, res) {
 app.post("/", function(req, res){
 
   const itemName = req.body.newItem;
+  const listName = req.body.list;
 
   const newItem = new Item({
     name: itemName,
   });
-  newItem.save()
-  res.redirect("/");
+
+  if(listName === "Today"){
+    newItem.save()
+    res.redirect("/");
+  } else{
+    List.findOne({name: listName})
+      .then(list => {
+        list.items.push(newItem);
+        list.save();
+        res.redirect("/" + listName);
+      })
+      .catch(err => {
+        console.log(err);
+      });
+  }
+
 });
 
 app.post("/delete", (req, res) => {
   const checkedItemId = req.body.checkbox;
-  Item.findByIdAndRemove(checkedItemId)
-    .then(() => {
-      console.log("Successfully deleted ItemID " + checkedItemId)
+  const listName = req.body.listName;
+
+  if(listName === "Today"){
+    Item.findByIdAndRemove(checkedItemId)
+      .then(() => {
+        console.log("Successfully deleted ItemID " + checkedItemId)
+        res.redirect("/");
+      })
+      .catch(err => {
+        console.log("Error deleting Item" + err)
+      });
+  } else {
+    List.findOneAndUpdate({name: listName}, {$pull: {items: {_id: checkedItemId}}})
+    .then(result => {
+      res.redirect("/" + listName);
     })
     .catch(err => {
-      console.log("Error deleting Item" + err)
+      console.log(err);
     });
+  }
 
-  res.redirect("/");
 });
 
 app.get("/:listName", (req, res) => {
-  const customListName = req.params.listName;
+  const customListName = _.capitalize(req.params.listName);
 
   List.findOne({name: customListName})
     .then((list) => {
